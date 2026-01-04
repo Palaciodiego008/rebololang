@@ -13,7 +13,7 @@ pkg/rebolo/
 ├── adapters/       # Infrastructure (External Dependencies)
 │   ├── config.go   # YAML configuration
 │   ├── router.go   # HTTP routing (Mux)
-│   ├── database.go # Database (Bun ORM)
+│   ├── database.go # Database factory (standard database/sql)
 │   └── renderer.go # Template/JSON rendering
 └── rebolo.go       # Application Facade
 ```
@@ -95,6 +95,11 @@ app := core.NewApp(config, router, mockDB, renderer)
 // Swap Mux for Gin easily
 ginRouter := adapters.NewGinRouter()  // New adapter
 app := core.NewApp(config, ginRouter, database, renderer)
+
+// Swap PostgreSQL for SQLite
+factory := adapters.NewDatabaseFactory()
+sqliteDB, _ := factory.CreateDatabase("sqlite")
+app := core.NewApp(config, router, sqliteDB, renderer)
 ```
 
 ### ✅ **Maintainability**
@@ -195,8 +200,9 @@ pkg/rebolo/
 - Fast unit tests
 
 ### 🔄 **Evolution**
-- Swap databases (PostgreSQL → MySQL)
+- Swap databases (PostgreSQL → SQLite → MySQL)
 - Change routers (Mux → Gin → Chi)
+- Use any ORM or none at all
 - Add caching, logging, monitoring
 - All without changing core business logic
 
@@ -204,5 +210,19 @@ pkg/rebolo/
 - Developers focus on business logic
 - Infrastructure concerns are isolated
 - Clear boundaries between layers
+
+## Multi-Database Support
+
+ReboloLang includes adapters for PostgreSQL, SQLite, and MySQL:
+
+```go
+// Database factory creates the right adapter
+factory := adapters.NewDatabaseFactory()
+db, _ := factory.CreateDatabase("sqlite")  // or "postgres", "mysql"
+db.ConnectWithDSN("file:./app.db", true)
+
+// All adapters return *sql.DB - use any ORM you want!
+sqlDB := db.DB()  // Standard database/sql
+```
 
 This architecture makes ReboloLang both powerful for beginners and flexible for advanced use cases! 🇨🇴🚀

@@ -5,13 +5,14 @@ A modern Go web framework inspired by **Rebolo**, Barranquilla, Colombia. Built 
 ## Features
 
 - 🔥 **Hot Reload** - Both Go server and frontend assets
-- ⚡ **Bun.js Integration** - Ultra-fast asset compilation
+- ⚡ **Bun.js Integration** - Ultra-fast asset compilation with Bun.js toolkit
 - 🛠️ **Code Generators** - Rails-like resource generation
-- 🗃️ **Built-in ORM** - Powered by Bun ORM with PostgreSQL
+- 🗃️ **Multi-Database Support** - PostgreSQL, SQLite, and MySQL (standard database/sql)
 - 🎨 **HTML Templates** - Server-side rendering with layouts
 - 📱 **API Support** - JSON APIs out of the box
 - 🔧 **CLI Tools** - Complete development workflow
 - 🛡️ **Middleware** - Logging, recovery, and more
+- 🏗️ **Clean Architecture** - Hexagonal architecture (Ports & Adapters)
 - 🇨🇴 **Colombian Pride** - Named after Rebolo neighborhood
 
 ## Installation
@@ -42,7 +43,9 @@ rebolo generate resource posts title:string content:text published:bool author:s
 Edit `config.yml`:
 ```yaml
 database:
-  url: postgres://localhost/blog_development
+  driver: "sqlite"  # or "postgres", "mysql"
+  url: "file:./blog.db?cache=shared&mode=rwc"
+  debug: true
 ```
 
 ### 4. Start development server
@@ -162,7 +165,9 @@ server:
   host: localhost
 
 database:
+  driver: postgres  # or sqlite, mysql
   url: postgres://localhost/myapp_development
+  debug: false  # Enable SQL query logging
 
 assets:
   hot_reload: true
@@ -196,28 +201,28 @@ func main() {
 
 ## Database Integration
 
-ReboloLang uses Bun ORM with PostgreSQL:
+Supports **PostgreSQL**, **SQLite**, and **MySQL** using Go's standard `database/sql`. No ORM imposed - use what you prefer!
+
+```yaml
+database:
+  driver: "sqlite"  # or postgres, mysql
+  url: "file:./app.db?cache=shared&mode=rwc"
+  debug: true
+```
 
 ```go
-// In your controller
-func (c *PostsController) Index(w http.ResponseWriter, r *http.Request) {
-    var posts []models.Posts
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+    db := app.DB()  // Returns *sql.DB
     
-    err := app.DB.NewSelect().Model(&posts).Scan(r.Context())
-    if err != nil {
-        rebololang.JSONError(w, "Failed to fetch posts", 500)
-        return
-    }
-    
-    rebololang.Render(w, "posts/index.html", map[string]interface{}{
-        "Posts": posts,
-    })
+    rows, err := db.QueryContext(r.Context(), 
+        "SELECT id, title FROM posts")
+    // ... use standard database/sql or wrap with your favorite ORM
 }
 ```
 
 ## Frontend Assets
 
-ReboloLang uses Bun.js for ultra-fast asset compilation:
+ReboloLang uses **Bun.js** (the JavaScript toolkit) for ultra-fast asset compilation:
 
 ```javascript
 // src/index.js
@@ -230,10 +235,13 @@ if (process.env.NODE_ENV === 'development') {
 }
 ```
 
+> **What is Bun.js?** Bun is a fast, all-in-one JavaScript toolkit that includes a bundler, runtime, and package manager. It's significantly faster than traditional tools like Webpack or Vite.
+
 Assets are:
-- Compiled with Bun.js in development
-- Watched for changes and hot-reloaded
-- Embedded in Go binary for production
+- Compiled with **Bun.js** in development
+- Watched for changes and hot-reloaded automatically
+- Minified and optimized for production
+- Can be embedded in Go binary
 
 ## Development Features
 
@@ -289,18 +297,24 @@ rebolo build  # (coming soon)
 ## Why ReboloLang?
 
 - **🏠 Familiar** - Rails/Buffalo conventions in Go
-- **⚡ Fast** - Bun.js for assets, Go for backend  
+- **⚡ Fast** - Go backend + Bun.js for lightning-fast asset compilation
 - **🎯 Simple** - Convention over configuration
-- **📦 Complete** - CLI, ORM, templates, assets included
-- **🔥 Modern** - Hot reload, embedded assets, single binary
+- **📦 Complete** - CLI, database support, templates, hot reload included
+- **🔥 Modern** - Hot reload with Bun.js, clean architecture, single binary
+- **🔄 Flexible** - Swap databases easily, use any ORM or none at all
 - **🇨🇴 Colombian** - Proudly named after Rebolo, Barranquilla
+
+## Example
+
+Check `examples/sqlite-todo/` for a complete REST API example.
 
 ## Roadmap
 
 - [x] CLI tool with app generation
 - [x] Resource generators (models, controllers, views, migrations)
 - [x] Hot reload for Go and assets
-- [x] Database integration with Bun ORM
+- [x] Multi-database support (PostgreSQL, SQLite, MySQL)
+- [x] Hexagonal architecture (Ports & Adapters)
 - [x] HTML template rendering
 - [x] JSON API support
 - [x] Middleware system
