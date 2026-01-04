@@ -8,6 +8,9 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 //go:embed templates
@@ -46,14 +49,14 @@ type Field struct {
 func NewGenerator() *Generator {
 	// Parse all template files recursively
 	tmpl := template.New("").Funcs(template.FuncMap{
-		"title": strings.Title,
+		"title": func(s string) string { return cases.Title(language.English).String(s) },
 		"lower": strings.ToLower,
 	})
-	
+
 	// Parse templates manually to handle nested directories
-	tmpl = template.Must(tmpl.ParseFS(templates, 
+	tmpl = template.Must(tmpl.ParseFS(templates,
 		"templates/app/main.go.tmpl",
-		"templates/app/package.json.tmpl", 
+		"templates/app/package.json.tmpl",
 		"templates/app/src/index.js.tmpl",
 		"templates/app/views/layouts/application.html.tmpl",
 		"templates/app/views/home/index.html.tmpl",
@@ -62,7 +65,7 @@ func NewGenerator() *Generator {
 		"templates/resource/controller.go.tmpl",
 		"templates/resource/migration.sql.tmpl",
 	))
-	
+
 	return &Generator{templates: tmpl}
 }
 
@@ -73,7 +76,7 @@ func (g *Generator) GenerateApp(name string) error {
 		Framework: "ReboloLang",
 		Title:     fmt.Sprintf("Welcome to %s", name),
 	}
-	
+
 	// Create directory structure
 	dirs := []string{
 		name,
@@ -85,38 +88,38 @@ func (g *Generator) GenerateApp(name string) error {
 		filepath.Join(name, "src"),
 		filepath.Join(name, "db", "migrations"),
 	}
-	
+
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
-	
+
 	// Generate files from templates
 	files := map[string]string{
-		filepath.Join(name, "main.go"):                           "app/main.go.tmpl",
-		filepath.Join(name, "package.json"):                     "app/package.json.tmpl",
-		filepath.Join(name, "config.yml"):                       "config/config.yml.tmpl",
-		filepath.Join(name, "src", "index.js"):                  "app/src/index.js.tmpl",
+		filepath.Join(name, "main.go"):                              "app/main.go.tmpl",
+		filepath.Join(name, "package.json"):                         "app/package.json.tmpl",
+		filepath.Join(name, "config.yml"):                           "config/config.yml.tmpl",
+		filepath.Join(name, "src", "index.js"):                      "app/src/index.js.tmpl",
 		filepath.Join(name, "views", "layouts", "application.html"): "app/views/layouts/application.html.tmpl",
-		filepath.Join(name, "views", "home", "index.html"):      "app/views/home/index.html.tmpl",
+		filepath.Join(name, "views", "home", "index.html"):          "app/views/home/index.html.tmpl",
 	}
-	
+
 	for filePath, tmplName := range files {
 		if err := g.renderTemplate(tmplName, filePath, data); err != nil {
 			return fmt.Errorf("failed to generate %s: %w", filePath, err)
 		}
 	}
-	
+
 	fmt.Printf("✅ Generated app: %s\n", name)
 	return nil
 }
 
 func (g *Generator) GenerateResource(name string, fieldArgs []string) error {
 	fields := g.parseFields(fieldArgs)
-	
+
 	data := ResourceData{
-		Name:      strings.Title(name),
+		Name:      cases.Title(language.English).String(name),
 		VarName:   strings.ToLower(name),
 		TableName: g.pluralize(strings.ToLower(name)),
 		ViewPath:  g.pluralize(strings.ToLower(name)),
@@ -124,37 +127,37 @@ func (g *Generator) GenerateResource(name string, fieldArgs []string) error {
 		Fields:    fields,
 		Timestamp: time.Now().Format("20060102150405"),
 	}
-	
+
 	// Create directories
 	os.MkdirAll("models", 0755)
 	os.MkdirAll("controllers", 0755)
 	os.MkdirAll("db/migrations", 0755)
 	os.MkdirAll(filepath.Join("views", data.ViewPath), 0755)
-	
+
 	// Generate files
 	files := map[string]string{
-		filepath.Join("models", data.VarName+".go"):                                    "resource/model.go.tmpl",
-		filepath.Join("controllers", data.VarName+"_controller.go"):                   "resource/controller.go.tmpl",
+		filepath.Join("models", data.VarName+".go"):                                        "resource/model.go.tmpl",
+		filepath.Join("controllers", data.VarName+"_controller.go"):                        "resource/controller.go.tmpl",
 		filepath.Join("db", "migrations", data.Timestamp+"_create_"+data.TableName+".sql"): "resource/migration.sql.tmpl",
 	}
-	
+
 	for filePath, tmplName := range files {
 		if err := g.renderTemplate(tmplName, filePath, data); err != nil {
 			return fmt.Errorf("failed to generate %s: %w", filePath, err)
 		}
 	}
-	
+
 	// Generate views
 	if err := g.generateViews(data); err != nil {
 		return err
 	}
-	
+
 	fmt.Printf("✅ Generated resource: %s\n", name)
 	fmt.Printf("   - Model: models/%s.go\n", data.VarName)
 	fmt.Printf("   - Controller: controllers/%s_controller.go\n", data.VarName)
 	fmt.Printf("   - Migration: db/migrations/%s_create_%s.sql\n", data.Timestamp, data.TableName)
 	fmt.Printf("   - Views: views/%s/\n", data.ViewPath)
-	
+
 	return nil
 }
 
@@ -164,38 +167,38 @@ func (g *Generator) renderTemplate(tmplName, filePath string, data interface{}) 
 		return err
 	}
 	defer file.Close()
-	
+
 	// Extract just the filename from the template path
 	parts := strings.Split(tmplName, "/")
 	templateName := parts[len(parts)-1]
-	
+
 	return g.templates.ExecuteTemplate(file, templateName, data)
 }
 
 func (g *Generator) parseFields(fieldArgs []string) []Field {
 	var fields []Field
-	
+
 	for _, arg := range fieldArgs {
 		parts := strings.Split(arg, ":")
 		if len(parts) != 2 {
 			continue
 		}
-		
+
 		name := parts[0]
 		fieldType := parts[1]
-		
+
 		field := Field{
-			Name:     strings.Title(name),
+			Name:     cases.Title(language.English).String(name),
 			DBName:   strings.ToLower(name),
 			FormName: strings.ToLower(name),
 			GoType:   g.mapToGoType(fieldType),
 			SQLType:  g.mapToSQLType(fieldType),
 			HTMLType: g.mapToHTMLType(fieldType),
 		}
-		
+
 		fields = append(fields, field)
 	}
-	
+
 	return fields
 }
 
@@ -269,14 +272,14 @@ func (g *Generator) generateViews(data ResourceData) error {
 		"new.html":   g.generateNewView(data),
 		"edit.html":  g.generateEditView(data),
 	}
-	
+
 	for filename, content := range views {
 		filePath := filepath.Join("views", data.ViewPath, filename)
 		if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -297,9 +300,9 @@ func (g *Generator) generateIndexView(data ResourceData) string {
         </div>
     </div>
     {{end}}
-</div>`, 
-		strings.Title(data.TableName), data.RoutePath, data.Name,
-		strings.Title(data.TableName), data.RoutePath, g.getFirstStringField(data.Fields),
+</div>`,
+		cases.Title(language.English).String(data.TableName), data.RoutePath, data.Name,
+		cases.Title(language.English).String(data.TableName), data.RoutePath, g.getFirstStringField(data.Fields),
 		data.RoutePath, data.RoutePath)
 }
 
@@ -309,14 +312,14 @@ func (g *Generator) generateShowView(data ResourceData) string {
 		fieldsHTML += fmt.Sprintf(`    <p><strong>%s:</strong> {{.%s}}</p>
 `, field.Name, field.Name)
 	}
-	
+
 	return fmt.Sprintf(`<h1>%s Details</h1>
 <div style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 8px; margin: 1rem 0; text-align: left;">
 %s</div>
 <div>
     <a href="/%s/{{.ID}}/edit" class="btn" style="background: #2196F3;">Edit</a>
     <a href="/%s" class="btn" style="background: #666; margin-left: 10px;">Back to List</a>
-</div>`, 
+</div>`,
 		data.Name, fieldsHTML, data.RoutePath, data.RoutePath)
 }
 
@@ -328,7 +331,7 @@ func (g *Generator) generateNewView(data ResourceData) string {
         <button type="submit" class="btn">Create %s</button>
         <a href="/%s" class="btn" style="background: #666; margin-left: 10px;">Cancel</a>
     </div>
-</form>`, 
+</form>`,
 		data.Name, data.RoutePath, g.generateFormFields(data.Fields), data.Name, data.RoutePath)
 }
 
@@ -341,7 +344,7 @@ func (g *Generator) generateEditView(data ResourceData) string {
         <button type="submit" class="btn" style="background: #2196F3;">Update %s</button>
         <a href="/%s/{{.ID}}" class="btn" style="background: #666; margin-left: 10px;">Cancel</a>
     </div>
-</form>`, 
+</form>`,
 		data.Name, data.RoutePath, g.generateFormFields(data.Fields), data.Name, data.RoutePath)
 }
 
