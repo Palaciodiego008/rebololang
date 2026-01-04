@@ -4,9 +4,9 @@
 *.dll
 *.so
 *.dylib
-rebolo
-rebololang
-rego
+/rebolo
+/rebololang
+/rego
 
 # Test binary, built with `go test -c`
 *.test
