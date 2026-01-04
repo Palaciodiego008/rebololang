@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -31,6 +32,7 @@ type AppData struct {
 type ResourceData struct {
 	Name       string
 	VarName    string
+	Module     string
 	TableName  string
 	ViewPath   string
 	RoutePath  string
@@ -60,16 +62,13 @@ func NewGenerator() *Generator {
 		"templates/app/main.go.tmpl",
 		"templates/app/package.json.tmpl",
 		"templates/app/src/index.js.tmpl",
+		"templates/app/src/styles.css.tmpl",
 		"templates/app/views/layouts/application.html.tmpl",
 		"templates/app/views/home/index.html.tmpl",
 		"templates/config/config.yml.tmpl",
 		"templates/resource/model.go.tmpl",
 		"templates/resource/controller.go.tmpl",
 		"templates/resource/migration.sql.tmpl",
-		"templates/resource/index.html.tmpl",
-		"templates/resource/show.html.tmpl",
-		"templates/resource/new.html.tmpl",
-		"templates/resource/edit.html.tmpl",
 	))
 
 	return &Generator{
@@ -110,6 +109,7 @@ func (g *Generator) GenerateApp(name string) error {
 		filepath.Join(name, "package.json"):                         "app/package.json.tmpl",
 		filepath.Join(name, "config.yml"):                           "config/config.yml.tmpl",
 		filepath.Join(name, "src", "index.js"):                      "app/src/index.js.tmpl",
+		filepath.Join(name, "src", "styles.css"):                    "app/src/styles.css.tmpl",
 		filepath.Join(name, "views", "layouts", "application.html"): "app/views/layouts/application.html.tmpl",
 		filepath.Join(name, "views", "home", "index.html"):          "app/views/home/index.html.tmpl",
 	}
@@ -120,16 +120,33 @@ func (g *Generator) GenerateApp(name string) error {
 		}
 	}
 
+	// Initialize go.mod (like Buffalo does)
+	fmt.Printf("📦 Initializing Go module...\n")
+	cmd := exec.Command("go", "mod", "init", name)
+	cmd.Dir = name
+	if err := cmd.Run(); err != nil {
+		// If go.mod already exists or error, continue (user might have created it manually)
+		fmt.Printf("⚠️  Note: go mod init skipped (module may already exist)\n")
+	}
+
 	fmt.Printf("✅ Generated app: %s\n", name)
+	fmt.Printf("💡 Next steps:\n")
+	fmt.Printf("   cd %s\n", name)
+	fmt.Printf("   go mod tidy\n")
+	fmt.Printf("   rebolo dev\n")
 	return nil
 }
 
 func (g *Generator) GenerateResource(name string, fieldArgs []string) error {
 	fields := g.parseFields(fieldArgs)
 
+	// Get module name from go.mod
+	moduleName := g.getModuleName()
+
 	data := ResourceData{
 		Name:       cases.Title(language.English).String(name),
 		VarName:    strings.ToLower(name),
+		Module:     moduleName,
 		TableName:  g.pluralize(strings.ToLower(name)),
 		ViewPath:   g.pluralize(strings.ToLower(name)),
 		RoutePath:  g.pluralize(strings.ToLower(name)),
@@ -144,21 +161,22 @@ func (g *Generator) GenerateResource(name string, fieldArgs []string) error {
 	os.MkdirAll("db/migrations", 0755)
 	os.MkdirAll(filepath.Join("views", data.ViewPath), 0755)
 
-	// Generate files (models, controllers, migrations, views)
+	// Generate files (models, controllers, migrations)
 	files := map[string]string{
 		filepath.Join("models", data.VarName+".go"):                                        "resource/model.go.tmpl",
 		filepath.Join("controllers", data.VarName+"_controller.go"):                        "resource/controller.go.tmpl",
 		filepath.Join("db", "migrations", data.Timestamp+"_create_"+data.TableName+".sql"): "resource/migration.sql.tmpl",
-		filepath.Join("views", data.ViewPath, "index.html"):                                "resource/index.html.tmpl",
-		filepath.Join("views", data.ViewPath, "show.html"):                                 "resource/show.html.tmpl",
-		filepath.Join("views", data.ViewPath, "new.html"):                                  "resource/new.html.tmpl",
-		filepath.Join("views", data.ViewPath, "edit.html"):                                 "resource/edit.html.tmpl",
 	}
 
 	for filePath, tmplName := range files {
 		if err := g.renderTemplate(tmplName, filePath, data); err != nil {
 			return fmt.Errorf("failed to generate %s: %w", filePath, err)
 		}
+	}
+
+	// Generate views using separate template instances to avoid name conflicts
+	if err := g.generateResourceViews(data); err != nil {
+		return err
 	}
 
 	fmt.Printf("✅ Generated resource: %s\n", name)
@@ -258,6 +276,46 @@ func isVowel(r rune) bool {
 	return strings.ContainsRune("aeiouAEIOU", r)
 }
 
+func (g *Generator) generateResourceViews(data ResourceData) error {
+	viewTemplates := map[string]string{
+		"index.html": "templates/resource/index.html.tmpl",
+		"show.html":  "templates/resource/show.html.tmpl",
+		"new.html":   "templates/resource/new.html.tmpl",
+		"edit.html":  "templates/resource/edit.html.tmpl",
+	}
+
+	for filename, tmplPath := range viewTemplates {
+		// Read template content
+		tmplContent, err := templates.ReadFile(tmplPath)
+		if err != nil {
+			return fmt.Errorf("failed to read %s: %w", tmplPath, err)
+		}
+
+		// Create new template instance for each view
+		tmpl, err := template.New(filename).Funcs(template.FuncMap{
+			"title": func(s string) string { return cases.Title(language.English).String(s) },
+			"lower": strings.ToLower,
+		}).Parse(string(tmplContent))
+		if err != nil {
+			return fmt.Errorf("failed to parse %s: %w", filename, err)
+		}
+
+		// Generate the view file
+		filePath := filepath.Join("views", data.ViewPath, filename)
+		file, err := os.Create(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to create %s: %w", filePath, err)
+		}
+		defer file.Close()
+
+		if err := tmpl.Execute(file, data); err != nil {
+			return fmt.Errorf("failed to execute template for %s: %w", filename, err)
+		}
+	}
+
+	return nil
+}
+
 func (g *Generator) getFirstStringField(fields []Field) string {
 	for _, field := range fields {
 		if field.GoType == "string" {
@@ -265,4 +323,29 @@ func (g *Generator) getFirstStringField(fields []Field) string {
 		}
 	}
 	return "ID"
+}
+
+func (g *Generator) getModuleName() string {
+	// Read go.mod to get module name
+	data, err := os.ReadFile("go.mod")
+	if err != nil {
+		// Fallback to directory name if go.mod doesn't exist
+		dir, err := os.Getwd()
+		if err != nil {
+			return "app"
+		}
+		return filepath.Base(dir)
+	}
+
+	// Parse module name from go.mod (first line: "module <name>")
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimPrefix(line, "module ")
+		}
+	}
+
+	// Fallback
+	return "app"
 }
