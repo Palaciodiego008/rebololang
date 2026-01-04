@@ -1,340 +1,191 @@
-# ReboloLang Framework 🚀🇨🇴
+# 🔥 ReboloLang
 
-A modern Go web framework inspired by **Rebolo**, Barranquilla, Colombia. Built with convention over configuration, hot reload, and Bun.js for lightning-fast asset compilation.
+A modern, fast, and elegant web framework for Go
 
-## Features
+[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-- 🔥 **Hot Reload** - Both Go server and frontend assets
-- ⚡ **Bun.js Integration** - Ultra-fast asset compilation with Bun.js toolkit
-- 🛠️ **Code Generators** - Rails-like resource generation
-- 🗃️ **Multi-Database Support** - PostgreSQL, SQLite, and MySQL (standard database/sql)
-- 🎨 **HTML Templates** - Server-side rendering with layouts
-- 📱 **API Support** - JSON APIs out of the box
-- 🔧 **CLI Tools** - Complete development workflow
-- 🛡️ **Middleware** - Logging, recovery, and more
-- 🏗️ **Clean Architecture** - Hexagonal architecture (Ports & Adapters)
-- 🇨🇴 **Colombian Pride** - Named after Rebolo neighborhood
+## ⚡ Why ReboloLang?
 
-## Installation
+- **🚀 Blazing Fast** - Bun.js powered asset pipeline
+- **🔥 Hot Reload** - Real-time development without manual restarts
+- **📦 Standard Library** - Built on Go's standard library (`database/sql`, `html/template`)
+- **✨ Type-Safe** - Full type safety with intelligent helpers
+- **🧪 Testing First** - Comprehensive testing utilities included
+- **🎯 Convention over Configuration** - Productive defaults, flexible when needed
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Palaciodiego008/rebololang/main/install.sh | bash
-```
+## 🚀 Quick Start
 
-Or manually:
+### Install
+
 ```bash
 go install github.com/Palaciodiego008/rebololang/cmd/rebolo@latest
 ```
 
-## Quick Start
+### Create New App
 
-### 1. Create a new app
 ```bash
-rebolo new blog
-cd blog
+rebolo new myblog
+cd myblog
 ```
 
-### 2. Generate a resource
+### Generate Resource
+
 ```bash
-rebolo generate resource posts title:string content:text published:bool author:string
+rebolo generate resource Post title:string content:text published:bool
 ```
 
-### 3. Configure database (optional)
-Edit `config.yml`:
-```yaml
-database:
-  driver: "sqlite"  # or "postgres", "mysql"
-  url: "file:./blog.db?cache=shared&mode=rwc"
-  debug: true
-```
+### Run
 
-### 4. Start development server
 ```bash
 rebolo dev
 ```
 
-Your app runs at `http://localhost:3000` with hot reload! 🎉
+Visit: `http://localhost:3000` 🎉
 
-## CLI Commands
+## ✨ Features
 
-### App Management
-```bash
-rebolo new myapp              # Create new application
-rebolo dev                    # Start development server with hot reload
-```
+| Feature | Status |
+|---------|--------|
+| 🔥 Hot Reload | ✅ |
+| 📧 Sessions & Flash Messages | ✅ |
+| 🎯 Context Helpers | ✅ |
+| ✅ Form Validation | ✅ |
+| ❌ Error Handlers | ✅ |
+| 🔧 Middleware Stack | ✅ |
+| 🧪 Testing Helpers | ✅ |
+| ⚡ Asset Pipeline (Bun.js) | ✅ |
+| 🗄️ SQLite/PostgreSQL | ✅ |
 
-### Code Generation
-```bash
-rebolo generate resource users name:string email:string age:int
-# or shorthand:
-rebolo g resource posts title:string content:text published:bool
-```
+## 📖 Documentation
 
-### Database Operations
-```bash
-rebolo db migrate             # Run database migrations
-```
+- [Architecture](docs/ARCHITECTURE.md)
+- [Commands Reference](docs/COMMANDS.md)
+- [Examples](examples/)
 
-## Generated Structure
+## 🎯 Example
 
-```
-blog/
-├── main.go                 # Application entry point
-├── config.yml              # Configuration
-├── package.json            # Bun.js dependencies
-├── controllers/            # HTTP controllers
-│   └── posts_controller.go
-├── models/                 # Database models
-│   └── posts.go
-├── views/                  # HTML templates
-│   ├── layouts/
-│   │   └── application.html
-│   ├── home/
-│   │   └── index.html
-│   └── posts/
-│       ├── index.html
-│       ├── show.html
-│       ├── new.html
-│       └── edit.html
-├── public/                 # Compiled assets
-├── src/                    # Frontend source
-│   └── index.js
-└── db/
-    └── migrations/         # Database migrations
-```
+### Simple Controller with Context
 
-## Resource Generation
-
-When you run:
-```bash
-rebolo g resource posts title:string content:text published:bool
-```
-
-ReboloLang generates:
-
-### 1. Model (`models/posts.go`)
 ```go
-type Posts struct {
-    bun.BaseModel `bun:"table:posts"`
+func (c *PostsController) Create(ctx *rebolo.Context) error {
+    var post Post
     
-    ID        int64     `bun:",pk,autoincrement"`
-    Title     string    `bun:"title"`
-    Content   string    `bun:"content"`
-    Published bool      `bun:"published"`
-    CreatedAt time.Time `bun:",nullzero,notnull,default:current_timestamp"`
-    UpdatedAt time.Time `bun:",nullzero,notnull,default:current_timestamp"`
+    // Bind and validate in one step
+    if err := ctx.BindAndValidate(&post); err != nil {
+        flash, _ := ctx.Flash()
+        flash.Error("Validation failed")
+        return ctx.Redirect("/posts/new", 303)
+    }
+    
+    // Save post
+    if err := c.repo.Save(&post); err != nil {
+        return err
+    }
+    
+    // Flash message + redirect
+    flash, _ := ctx.Flash()
+    flash.Success("Post created!")
+    ctx.SaveSession()
+    
+    return ctx.Redirect("/posts", 303)
 }
 ```
 
-### 2. Controller (`controllers/posts_controller.go`)
-Complete CRUD controller with:
-- Index, Show, New, Create, Edit, Update, Delete actions
-- Form parsing and validation
-- Database operations (ready to uncomment)
-- Proper error handling
-
-### 3. Views (`views/posts/`)
-- **index.html** - List all posts with edit/delete buttons
-- **show.html** - Display single post
-- **new.html** - Create form with proper styling
-- **edit.html** - Edit form with pre-filled values
-
-### 4. Migration (`db/migrations/xxx_create_posts.sql`)
-```sql
-CREATE TABLE posts (
-    id BIGSERIAL PRIMARY KEY,
-    title VARCHAR(255),
-    content TEXT,
-    published BOOLEAN,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-## Configuration
-
-Edit `config.yml`:
-
-```yaml
-app:
-  name: MyApp
-  env: development
-
-server:
-  port: 3000
-  host: localhost
-
-database:
-  driver: postgres  # or sqlite, mysql
-  url: postgres://localhost/myapp_development
-  debug: false  # Enable SQL query logging
-
-assets:
-  hot_reload: true
-```
-
-Override with environment variables:
-- `PORT` - Server port
-- `HOST` - Server host
-- `REBOLOLANG_ENV` - Environment (development/production)
-
-## Controllers & Routes
+### Form Validation
 
 ```go
-func main() {
-    app := rebololang.New()
-    
-    // Simple routes
-    app.GET("/", HomeHandler)
-    app.POST("/api/posts", CreatePostAPI)
-    
-    // RESTful resources (generates 7 routes)
-    app.Resource("/posts", &controllers.PostsController{})
-    
-    // Static files
-    app.Router.PathPrefix("/public/").Handler(
-        http.StripPrefix("/public/", http.FileServer(http.Dir("./public/"))))
-    
-    app.Start()
+type CreatePostForm struct {
+    Title   string `form:"title" validate:"required,min=3,max=100"`
+    Content string `form:"content" validate:"required,min=10"`
+}
+
+// Automatic validation with Spanish error messages
+func (c *PostsController) Create(ctx *rebolo.Context) error {
+    var form CreatePostForm
+    if err := ctx.BindAndValidate(&form); err != nil {
+        // Handle validation errors
+    }
 }
 ```
 
-## Database Integration
-
-Supports **PostgreSQL**, **SQLite**, and **MySQL** using Go's standard `database/sql`. No ORM imposed - use what you prefer!
-
-```yaml
-database:
-  driver: "sqlite"  # or postgres, mysql
-  url: "file:./app.db?cache=shared&mode=rwc"
-  debug: true
-```
+### Testing
 
 ```go
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-    db := app.DB()  // Returns *sql.DB
+func TestPostsController(t *testing.T) {
+    app := rebolo.NewTestApp()
     
-    rows, err := db.QueryContext(r.Context(), 
-        "SELECT id, title FROM posts")
-    // ... use standard database/sql or wrap with your favorite ORM
+    resp := app.POST("/posts").
+        WithForm(map[string]string{
+            "title": "Test Post",
+            "content": "Test content",
+        }).
+        Do()
+    
+    assert.True(t, resp.IsRedirect())
+    assert.True(t, resp.Contains("created"))
 }
 ```
 
-## Frontend Assets
+## 🏗️ Project Structure
 
-ReboloLang uses **Bun.js** (the JavaScript toolkit) for ultra-fast asset compilation:
-
-```javascript
-// src/index.js
-console.log('🚀 Blog loaded with ReboloLang!');
-
-// Hot reload is automatic in development
-if (process.env.NODE_ENV === 'development') {
-  const eventSource = new EventSource('/dev/reload');
-  eventSource.onmessage = () => location.reload();
-}
+```
+myapp/
+├── app/
+│   ├── controllers/      # HTTP handlers
+│   ├── models/           # Database models
+│   ├── middleware/       # Custom middleware
+│   └── services/         # Business logic
+├── config/
+│   └── config.yml        # Configuration
+├── views/
+│   ├── layouts/          # Layout templates
+│   ├── shared/           # Partials
+│   └── errors/           # Error pages
+├── assets/
+│   ├── css/              # Stylesheets
+│   ├── js/               # JavaScript
+│   └── images/           # Images
+├── public/               # Compiled assets
+├── db/
+│   ├── migrations/       # Database migrations
+│   └── seeds/            # Seed data
+└── main.go               # Entry point
 ```
 
-> **What is Bun.js?** Bun is a fast, all-in-one JavaScript toolkit that includes a bundler, runtime, and package manager. It's significantly faster than traditional tools like Webpack or Vite.
-
-Assets are:
-- Compiled with **Bun.js** in development
-- Watched for changes and hot-reloaded automatically
-- Minified and optimized for production
-- Can be embedded in Go binary
-
-## Development Features
-
-### Hot Reload
-- **Go files** - Server automatically restarts
-- **Frontend assets** - Bun.js rebuilds and browser refreshes
-- **Templates** - Automatically reloaded
-
-### Middleware
-Built-in middleware:
-- **Logging** - Request logging
-- **Recovery** - Panic recovery
-- **Static files** - Serve public assets
-
-### Error Handling
-```go
-// JSON errors
-rebololang.JSONError(w, "Not found", 404)
-
-// Template rendering
-rebololang.Render(w, "posts/show.html", data)
-
-// JSON responses
-rebololang.JSON(w, map[string]interface{}{
-    "posts": posts,
-    "total": len(posts),
-})
-```
-
-## Field Types
-
-When generating resources, use these field types:
-
-| Type | Go Type | SQL Type | HTML Input |
-|------|---------|----------|------------|
-| `string` | `string` | `VARCHAR(255)` | `text` |
-| `text` | `string` | `TEXT` | `textarea` |
-| `int` | `int64` | `BIGINT` | `number` |
-| `bool` | `bool` | `BOOLEAN` | `checkbox` |
-| `float` | `float64` | `DECIMAL` | `number` |
-| `time` | `time.Time` | `TIMESTAMP` | `datetime-local` |
-
-## Production Deployment
+## 🛠️ Commands
 
 ```bash
+# Create new app
+rebolo new myapp
+
+# Generate resource (CRUD)
+rebolo generate resource Post title:string content:text
+
+# Run with hot reload
+rebolo dev
+
+# Run tests
+go test ./...
+
 # Build for production
-rebolo build  # (coming soon)
-
-# Single binary with embedded assets
-./myapp
+go build -o myapp .
 ```
 
-## Why ReboloLang?
+## 📦 Requirements
 
-- **🏠 Familiar** - Rails/Buffalo conventions in Go
-- **⚡ Fast** - Go backend + Bun.js for lightning-fast asset compilation
-- **🎯 Simple** - Convention over configuration
-- **📦 Complete** - CLI, database support, templates, hot reload included
-- **🔥 Modern** - Hot reload with Bun.js, clean architecture, single binary
-- **🔄 Flexible** - Swap databases easily, use any ORM or none at all
-- **🇨🇴 Colombian** - Proudly named after Rebolo, Barranquilla
+- Go 1.21+
+- Bun.js (auto-installed)
+- SQLite or PostgreSQL
 
-## Example
+## 🤝 Contributing
 
-Check `examples/sqlite-todo/` for a complete REST API example.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Roadmap
+## 📝 License
 
-- [x] CLI tool with app generation
-- [x] Resource generators (models, controllers, views, migrations)
-- [x] Hot reload for Go and assets
-- [x] Multi-database support (PostgreSQL, SQLite, MySQL)
-- [x] Hexagonal architecture (Ports & Adapters)
-- [x] HTML template rendering
-- [x] JSON API support
-- [x] Middleware system
-- [ ] Authentication middleware
-- [ ] WebSocket support
-- [ ] Background jobs
-- [ ] Production build command
-- [ ] Docker integration
-
-## Contributing
-
-Built with ❤️ in honor of **Rebolo**, Barranquilla, Colombia 🇨🇴
-
-Created by [@Palaciodiego008](https://github.com/Palaciodiego008)
-
-## License
-
-MIT License
+MIT License - see [LICENSE](LICENSE) file
 
 ---
 
-**¡Vamos Rebolo!** 🚀🇨🇴
-# Rebolo
+**Built with ❤️ in Barranquilla, Colombia 🇨🇴**
