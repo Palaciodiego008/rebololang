@@ -1,0 +1,42 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	
+	"github.com/Palaciodiego008/rebololang/pkg/rebolo"
+)
+
+func main() {
+	app := rebolo.New()
+	
+	// Routes
+	app.GET("/", HomeHandler)
+	
+	// Static files (compiled by Bun.js)
+	app.GET("/public/", http.StripPrefix("/public/", http.FileServer(http.Dir("./public/"))))
+	
+	// Hot reload endpoint for development
+	app.GET("/dev/reload", HotReloadHandler)
+	
+	if err := app.Start(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+	rebolo.Render(w, "home/index.html", map[string]string{
+		"Title": "Welcome to {{.Name}}",
+		"Framework": "ReboloLang",
+	})
+}
+
+func HotReloadHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	
+	// Keep connection alive for hot reload
+	select {}
+}

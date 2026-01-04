@@ -1,0 +1,16 @@
+{{define "content"}}
+<h1>🚀 {{.Title}}</h1>
+<p>Your ReboloLang application is running successfully!</p>
+<p>Framework: <strong>{{.Framework}}</strong></p>
+<p>Inspired by Rebolo, Barranquilla, Colombia 🇨🇴</p>
+
+<div style="margin-top: 2rem;">
+    <h3>Next Steps:</h3>
+    <ul style="text-align: left; display: inline-block;">
+        <li>Generate resources: <code>rebolo generate resource posts title:string</code></li>
+        <li>Add routes in <code>main.go</code></li>
+        <li>Configure database in <code>config.yml</code></li>
+        <li>Run migrations: <code>rebolo db migrate</code></li>
+    </ul>
+</div>
+{{end}}

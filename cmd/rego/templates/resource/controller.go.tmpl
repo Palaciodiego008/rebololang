@@ -1,0 +1,117 @@
+package controllers
+
+import (
+	"net/http"
+	"strconv"
+	
+	"github.com/gorilla/mux"
+	"github.com/Palaciodiego008/rebololang/pkg/rebolo"
+	"../models"
+)
+
+type {{.Name}}Controller struct{}
+
+func (c *{{.Name}}Controller) Index(w http.ResponseWriter, r *http.Request) {
+	var {{.VarName}}s []models.{{.Name}}
+	
+	// TODO: Implement database query
+	// err := app.DB.NewSelect().Model(&{{.VarName}}s).Scan(r.Context())
+	
+	rebolo.Render(w, "{{.ViewPath}}/index.html", map[string]interface{}{
+		"{{.Name}}s": {{.VarName}}s,
+	})
+}
+
+func (c *{{.Name}}Controller) Show(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	
+	var {{.VarName}} models.{{.Name}}
+	
+	// TODO: Implement database query
+	// err = app.DB.NewSelect().Model(&{{.VarName}}).Where("id = ?", id).Scan(r.Context())
+	
+	rebolo.Render(w, "{{.ViewPath}}/show.html", map[string]interface{}{
+		"{{.Name}}": {{.VarName}},
+	})
+}
+
+func (c *{{.Name}}Controller) New(w http.ResponseWriter, r *http.Request) {
+	rebolo.Render(w, "{{.ViewPath}}/new.html", nil)
+}
+
+func (c *{{.Name}}Controller) Create(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		rebolo.JSONError(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+	
+	{{.VarName}} := models.{{.Name}}{
+{{range .Fields}}		{{.Name | title}}: r.FormValue("{{.FormName}}"),
+{{end}}	}
+	
+	// TODO: Implement database insert
+	// _, err := app.DB.NewInsert().Model(&{{.VarName}}).Exec(r.Context())
+	
+	http.Redirect(w, r, "/{{.RoutePath}}", http.StatusSeeOther)
+}
+
+func (c *{{.Name}}Controller) Edit(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	
+	var {{.VarName}} models.{{.Name}}
+	
+	// TODO: Implement database query
+	// err = app.DB.NewSelect().Model(&{{.VarName}}).Where("id = ?", id).Scan(r.Context())
+	
+	rebolo.Render(w, "{{.ViewPath}}/edit.html", map[string]interface{}{
+		"{{.Name}}": {{.VarName}},
+	})
+}
+
+func (c *{{.Name}}Controller) Update(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	
+	if err := r.ParseForm(); err != nil {
+		rebolo.JSONError(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+	
+	{{.VarName}} := models.{{.Name}}{
+		ID: id,
+{{range .Fields}}		{{.Name | title}}: r.FormValue("{{.FormName}}"),
+{{end}}	}
+	
+	// TODO: Implement database update
+	// _, err = app.DB.NewUpdate().Model(&{{.VarName}}).Where("id = ?", id).Exec(r.Context())
+	
+	http.Redirect(w, r, "/{{.RoutePath}}", http.StatusSeeOther)
+}
+
+func (c *{{.Name}}Controller) Delete(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+	
+	// TODO: Implement database delete
+	// _, err = app.DB.NewDelete().Model((*models.{{.Name}})(nil)).Where("id = ?", id).Exec(r.Context())
+	
+	http.Redirect(w, r, "/{{.RoutePath}}", http.StatusSeeOther)
+}

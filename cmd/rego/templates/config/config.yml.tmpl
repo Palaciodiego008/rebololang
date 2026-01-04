@@ -1,0 +1,13 @@
+app:
+  name: {{.Name}}
+  env: development
+
+server:
+  port: 3000
+  host: localhost
+
+database:
+  url: postgres://localhost/{{.Name}}_development
+
+assets:
+  hot_reload: true

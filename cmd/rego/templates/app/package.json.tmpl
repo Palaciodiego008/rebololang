@@ -1,0 +1,13 @@
+{
+  "name": "{{.Name}}",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bun build src/index.js --outdir=public --watch",
+    "build": "bun build src/index.js --outdir=public --minify",
+    "watch": "bun build src/index.js --outdir=public --watch"
+  },
+  "devDependencies": {
+    "bun": "latest"
+  },
+  "dependencies": {}
+}

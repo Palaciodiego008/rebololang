@@ -1,0 +1,15 @@
+package models
+
+import (
+	"time"
+	"github.com/uptrace/bun"
+)
+
+type {{.Name}} struct {
+	bun.BaseModel `bun:"table:{{.TableName}}"`
+	
+	ID        int64     `bun:",pk,autoincrement"`
+{{range .Fields}}	{{.Name | title}}    {{.GoType}}   `bun:"{{.DBName}}"`
+{{end}}	CreatedAt time.Time `bun:",nullzero,notnull,default:current_timestamp"`
+	UpdatedAt time.Time `bun:",nullzero,notnull,default:current_timestamp"`
+}
