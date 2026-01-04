@@ -1,117 +1,149 @@
 package controllers
 
 import (
+	"database/sql"
 	"net/http"
-	"strconv"
+	"time"
 	
 	"github.com/gorilla/mux"
 	"github.com/Palaciodiego008/rebololang/pkg/rebolo"
-	"../models"
+	"{{.Module}}/models"
 )
 
-type {{.Name}}Controller struct{}
+type {{.Name}}Controller struct{
+	App *rebolo.Application
+}
 
 func (c *{{.Name}}Controller) Index(w http.ResponseWriter, r *http.Request) {
+	db := c.App.DB()
+	
+	rows, err := db.QueryContext(r.Context(), 
+		"SELECT id{{range .Fields}}, {{.DBName}}{{end}}, created_at, updated_at FROM {{.TableName}} ORDER BY created_at DESC")
+	if err != nil {
+		c.App.RenderError(w, "Failed to fetch {{.VarName}}s", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+	
 	var {{.VarName}}s []models.{{.Name}}
+	for rows.Next() {
+		var item models.{{.Name}}
+		if err := rows.Scan(&item.ID{{range .Fields}}, &item.{{.Name | title}}{{end}}, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			continue
+		}
+		{{.VarName}}s = append({{.VarName}}s, item)
+	}
 	
-	// TODO: Implement database query
-	// err := app.DB.NewSelect().Model(&{{.VarName}}s).Scan(r.Context())
-	
-	rebolo.Render(w, "{{.ViewPath}}/index.html", map[string]interface{}{
+	c.App.RenderHTML(w, "{{.ViewPath}}/index.html", map[string]interface{}{
 		"{{.Name}}s": {{.VarName}}s,
 	})
 }
 
 func (c *{{.Name}}Controller) Show(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
-	if err != nil {
-		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
+	id := vars["id"]
+	
+	db := c.App.DB()
+	var item models.{{.Name}}
+	
+	err := db.QueryRowContext(r.Context(), 
+		"SELECT id{{range .Fields}}, {{.DBName}}{{end}}, created_at, updated_at FROM {{.TableName}} WHERE id = ?", id).
+		Scan(&item.ID{{range .Fields}}, &item.{{.Name | title}}{{end}}, &item.CreatedAt, &item.UpdatedAt)
+	
+	if err == sql.ErrNoRows {
+		c.App.RenderError(w, "{{.Name}} not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		c.App.RenderError(w, "Database error", http.StatusInternalServerError)
 		return
 	}
 	
-	var {{.VarName}} models.{{.Name}}
-	
-	// TODO: Implement database query
-	// err = app.DB.NewSelect().Model(&{{.VarName}}).Where("id = ?", id).Scan(r.Context())
-	
-	rebolo.Render(w, "{{.ViewPath}}/show.html", map[string]interface{}{
-		"{{.Name}}": {{.VarName}},
-	})
+	c.App.RenderHTML(w, "{{.ViewPath}}/show.html", item)
 }
 
 func (c *{{.Name}}Controller) New(w http.ResponseWriter, r *http.Request) {
-	rebolo.Render(w, "{{.ViewPath}}/new.html", nil)
+	c.App.RenderHTML(w, "{{.ViewPath}}/new.html", nil)
 }
 
 func (c *{{.Name}}Controller) Create(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		rebolo.JSONError(w, "Invalid form data", http.StatusBadRequest)
+		c.App.RenderError(w, "Invalid form data", http.StatusBadRequest)
 		return
 	}
 	
-	{{.VarName}} := models.{{.Name}}{
-{{range .Fields}}		{{.Name | title}}: r.FormValue("{{.FormName}}"),
-{{end}}	}
+{{range .Fields}}{{if eq .GoType "bool"}}	{{.DBName}} := r.FormValue("{{.FormName}}") == "true"
+{{else if eq .GoType "int64"}}	{{.DBName}} := r.FormValue("{{.FormName}}")
+{{else}}	{{.DBName}} := r.FormValue("{{.FormName}}")
+{{end}}{{end}}	
+	db := c.App.DB()
+	_, err := db.ExecContext(r.Context(), 
+		"INSERT INTO {{.TableName}} ({{range $i, $f := .Fields}}{{if $i}}, {{end}}{{$f.DBName}}{{end}}, created_at, updated_at) VALUES ({{range $i, $f := .Fields}}{{if $i}}, {{end}}?{{end}}, ?, ?)",
+		{{range .Fields}}{{.DBName}}, {{end}}time.Now(), time.Now())
 	
-	// TODO: Implement database insert
-	// _, err := app.DB.NewInsert().Model(&{{.VarName}}).Exec(r.Context())
+	if err != nil {
+		c.App.RenderError(w, "Failed to create {{.VarName}}", http.StatusInternalServerError)
+		return
+	}
 	
 	http.Redirect(w, r, "/{{.RoutePath}}", http.StatusSeeOther)
 }
 
 func (c *{{.Name}}Controller) Edit(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	id := vars["id"]
+	
+	db := c.App.DB()
+	var item models.{{.Name}}
+	
+	err := db.QueryRowContext(r.Context(), 
+		"SELECT id{{range .Fields}}, {{.DBName}}{{end}}, created_at, updated_at FROM {{.TableName}} WHERE id = ?", id).
+		Scan(&item.ID{{range .Fields}}, &item.{{.Name | title}}{{end}}, &item.CreatedAt, &item.UpdatedAt)
+	
 	if err != nil {
-		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
+		c.App.RenderError(w, "{{.Name}} not found", http.StatusNotFound)
 		return
 	}
 	
-	var {{.VarName}} models.{{.Name}}
-	
-	// TODO: Implement database query
-	// err = app.DB.NewSelect().Model(&{{.VarName}}).Where("id = ?", id).Scan(r.Context())
-	
-	rebolo.Render(w, "{{.ViewPath}}/edit.html", map[string]interface{}{
-		"{{.Name}}": {{.VarName}},
-	})
+	c.App.RenderHTML(w, "{{.ViewPath}}/edit.html", item)
 }
 
 func (c *{{.Name}}Controller) Update(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
-	if err != nil {
-		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
-		return
-	}
+	id := vars["id"]
 	
 	if err := r.ParseForm(); err != nil {
-		rebolo.JSONError(w, "Invalid form data", http.StatusBadRequest)
+		c.App.RenderError(w, "Invalid form data", http.StatusBadRequest)
 		return
 	}
 	
-	{{.VarName}} := models.{{.Name}}{
-		ID: id,
-{{range .Fields}}		{{.Name | title}}: r.FormValue("{{.FormName}}"),
-{{end}}	}
+{{range .Fields}}{{if eq .GoType "bool"}}	{{.DBName}} := r.FormValue("{{.FormName}}") == "true"
+{{else if eq .GoType "int64"}}	{{.DBName}} := r.FormValue("{{.FormName}}")
+{{else}}	{{.DBName}} := r.FormValue("{{.FormName}}")
+{{end}}{{end}}	
+	db := c.App.DB()
+	_, err := db.ExecContext(r.Context(), 
+		"UPDATE {{.TableName}} SET {{range $i, $f := .Fields}}{{if $i}}, {{end}}{{$f.DBName}} = ?{{end}}, updated_at = ? WHERE id = ?",
+		{{range .Fields}}{{.DBName}}, {{end}}time.Now(), id)
 	
-	// TODO: Implement database update
-	// _, err = app.DB.NewUpdate().Model(&{{.VarName}}).Where("id = ?", id).Exec(r.Context())
+	if err != nil {
+		c.App.RenderError(w, "Failed to update {{.VarName}}", http.StatusInternalServerError)
+		return
+	}
 	
-	http.Redirect(w, r, "/{{.RoutePath}}", http.StatusSeeOther)
+	http.Redirect(w, r, "/{{.RoutePath}}/"+id, http.StatusSeeOther)
 }
 
 func (c *{{.Name}}Controller) Delete(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	id, err := strconv.ParseInt(vars["id"], 10, 64)
+	id := vars["id"]
+	
+	db := c.App.DB()
+	_, err := db.ExecContext(r.Context(), "DELETE FROM {{.TableName}} WHERE id = ?", id)
+	
 	if err != nil {
-		rebolo.JSONError(w, "Invalid ID", http.StatusBadRequest)
+		c.App.RenderError(w, "Failed to delete {{.VarName}}", http.StatusInternalServerError)
 		return
 	}
-	
-	// TODO: Implement database delete
-	// _, err = app.DB.NewDelete().Model((*models.{{.Name}})(nil)).Where("id = ?", id).Exec(r.Context())
 	
 	http.Redirect(w, r, "/{{.RoutePath}}", http.StatusSeeOther)
 }
