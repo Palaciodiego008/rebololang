@@ -1,0 +1,9 @@
+# Binary
+todo
+sqlite-todo
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
