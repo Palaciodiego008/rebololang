@@ -13,6 +13,7 @@ import (
 	rebolocontext "github.com/Palaciodiego008/rebololang/pkg/rebolo/context"
 	"github.com/Palaciodiego008/rebololang/pkg/rebolo/core"
 	"github.com/Palaciodiego008/rebololang/pkg/rebolo/errors"
+	"github.com/Palaciodiego008/rebololang/pkg/rebolo/logging"
 	"github.com/Palaciodiego008/rebololang/pkg/rebolo/middleware"
 	"github.com/Palaciodiego008/rebololang/pkg/rebolo/ports"
 	"github.com/Palaciodiego008/rebololang/pkg/rebolo/resource"
@@ -99,6 +100,7 @@ func New() *Application {
 	coreApp := core.NewApp(config, router, database, renderer)
 
 	// Add default middleware
+	coreApp.AddMiddleware(middleware.MethodOverride)
 	coreApp.AddMiddleware(LoggingMiddleware)
 	coreApp.AddMiddleware(RecoveryMiddleware)
 
@@ -325,6 +327,18 @@ func (a *Application) DB() *sql.DB {
 	return nil
 }
 
+// LogQuery logs a SQL query in yellow (helper for controllers)
+func (a *Application) LogQuery(query string, args ...interface{}) {
+	if a.config.GetDatabaseDebug() || a.config.GetEnvironment() == "development" {
+		logging.LogQuery(query, args...)
+	}
+}
+
+// LogQueryError logs a SQL query error (helper for controllers)
+func (a *Application) LogQueryError(query string, err error, args ...interface{}) {
+	logging.LogQueryError(query, err, args...)
+}
+
 // responseWriter wraps http.ResponseWriter to capture status code and size
 type loggingResponseWriter struct {
 	http.ResponseWriter
@@ -492,7 +506,9 @@ func (a *Application) NotFoundHandler() http.HandlerFunc {
 // MethodNotAllowedHandler is a custom 405 handler
 func (a *Application) MethodNotAllowedHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		a.HandleError(w, r, fmt.Errorf("method not allowed: %s", r.Method), 405)
+		log.Printf("%s[ERROR 405]%s Method Not Allowed: %s %s (if using PUT/DELETE, ensure form has _method field)",
+			"\033[31m", "\033[0m", r.Method, r.URL.Path)
+		a.HandleError(w, r, fmt.Errorf("method not allowed: %s %s (if using PUT/DELETE, ensure form has _method field)", r.Method, r.URL.Path), 405)
 	}
 }
 

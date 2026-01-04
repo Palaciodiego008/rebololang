@@ -89,9 +89,11 @@ func (a *App) Start() error {
 		}
 	}
 
-	// Apply middleware
-	for _, mw := range a.middleware {
-		a.router.Use(mw)
+	// Apply middleware - wrap the router with middleware in reverse order
+	// (first middleware becomes outermost, last becomes innermost)
+	var handler http.Handler = a.router
+	for i := len(a.middleware) - 1; i >= 0; i-- {
+		handler = a.middleware[i](handler)
 	}
 
 	port := a.config.GetPort()
@@ -99,7 +101,7 @@ func (a *App) Start() error {
 		port = "3000"
 	}
 
-	return http.ListenAndServe(":"+port, a.router)
+	return http.ListenAndServe(":"+port, handler)
 }
 
 // AddMiddleware adds middleware to the application
