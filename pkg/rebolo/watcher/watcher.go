@@ -18,6 +18,15 @@ type AppInterface interface {
 	ReloadTemplates()
 }
 
+// WatcherStats tracks statistics about file watching
+type WatcherStats struct {
+	TotalChanges    int
+	TemplateChanges int
+	AssetChanges    int
+	CodeChanges     int
+	LastChangeTime  time.Time
+}
+
 // FileWatcher monitors file changes and triggers reloads
 type FileWatcher struct {
 	watcher     *fsnotify.Watcher
@@ -27,6 +36,8 @@ type FileWatcher struct {
 	debounce    map[string]time.Time
 	debounceMu  sync.Mutex
 	watchDirs   []string
+	stats       WatcherStats
+	statsMu     sync.RWMutex
 }
 
 // FileChangeEvent represents a file change notification
@@ -43,6 +54,7 @@ func NewFileWatcher(app AppInterface, watchDirs []string) *FileWatcher {
 		subscribers: make([]chan FileChangeEvent, 0),
 		debounce:    make(map[string]time.Time),
 		watchDirs:   watchDirs,
+		stats:       WatcherStats{},
 	}
 
 	return fw
@@ -55,7 +67,7 @@ func (fw *FileWatcher) Start() error {
 		return err
 	}
 	fw.watcher = watcher
-	
+
 	// Add directories to watch
 	for _, dir := range fw.watchDirs {
 		if err := fw.addRecursive(dir); err != nil {
@@ -136,6 +148,20 @@ func (fw *FileWatcher) handleEvent(event fsnotify.Event) {
 		return // Ignore other file types
 	}
 
+	// Update statistics
+	fw.statsMu.Lock()
+	fw.stats.TotalChanges++
+	fw.stats.LastChangeTime = time.Now()
+	switch eventType {
+	case "template":
+		fw.stats.TemplateChanges++
+	case "asset":
+		fw.stats.AssetChanges++
+	case "code":
+		fw.stats.CodeChanges++
+	}
+	fw.statsMu.Unlock()
+
 	// Notify all subscribers
 	changeEvent := FileChangeEvent{
 		Path:      event.Name,
@@ -143,7 +169,10 @@ func (fw *FileWatcher) handleEvent(event fsnotify.Event) {
 		Timestamp: time.Now(),
 	}
 
-	log.Printf("🔥 Hot reload: %s (%s)", filepath.Base(event.Name), eventType)
+	log.Printf("🔥 Hot reload: %s (%s) at %s",
+		filepath.Base(event.Name),
+		eventType,
+		changeEvent.Timestamp.Format("15:04:05.000"))
 	fw.notifySubscribers(changeEvent)
 }
 
@@ -164,18 +193,22 @@ func (fw *FileWatcher) shouldProcess(path string) bool {
 
 // reloadTemplates reloads HTML templates without restarting the server
 func (fw *FileWatcher) reloadTemplates() {
+	start := time.Now()
 	log.Printf("📝 Reloading templates...")
-	
+
 	// Delegate to the app
 	fw.app.ReloadTemplates()
 	fw.app.UpdateLastChangeTime(time.Now())
 
-	log.Printf("✅ Templates reloaded")
+	duration := time.Since(start)
+	log.Printf("✅ Templates reloaded in %v", duration)
 }
 
 // recompileAssets triggers asset recompilation with Bun
 func (fw *FileWatcher) recompileAssets() {
 	log.Printf("⚡ Recompiling assets with Bun...")
+	// Update last change time for polling to detect changes
+	fw.app.UpdateLastChangeTime(time.Now())
 	// This will be triggered by the command watching process
 	// Just notify subscribers - the dev command handles actual compilation
 }
@@ -218,10 +251,26 @@ func (fw *FileWatcher) notifySubscribers(event FileChangeEvent) {
 	}
 }
 
+// Stats returns current watcher statistics
+func (fw *FileWatcher) Stats() WatcherStats {
+	fw.statsMu.RLock()
+	defer fw.statsMu.RUnlock()
+	return fw.stats
+}
+
 // Close stops the file watcher
 func (fw *FileWatcher) Close() error {
 	fw.mu.Lock()
 	defer fw.mu.Unlock()
+
+	// Log statistics before closing
+	fw.statsMu.RLock()
+	stats := fw.stats
+	fw.statsMu.RUnlock()
+	if stats.TotalChanges > 0 {
+		log.Printf("📊 Watcher stats: %d total changes (%d templates, %d assets, %d code)",
+			stats.TotalChanges, stats.TemplateChanges, stats.AssetChanges, stats.CodeChanges)
+	}
 
 	// Close all subscriber channels
 	for _, ch := range fw.subscribers {

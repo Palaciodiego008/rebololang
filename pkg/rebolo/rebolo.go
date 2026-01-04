@@ -273,7 +273,8 @@ func (a *Application) hotReloadChangesHandler(w http.ResponseWriter, r *http.Req
 		response["lastChange"] = lastChange.Unix()
 	}
 
-	JSON(w, response)
+	// Use RenderJSON instead of global JSON() to avoid creating new renderer
+	a.RenderJSON(w, response)
 }
 
 // GetSession retrieves the session for the current request
@@ -324,11 +325,52 @@ func (a *Application) DB() *sql.DB {
 	return nil
 }
 
+// responseWriter wraps http.ResponseWriter to capture status code and size
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+	size       int
+}
+
+func newLoggingResponseWriter(w http.ResponseWriter) *loggingResponseWriter {
+	return &loggingResponseWriter{w, http.StatusOK, 0}
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
+func (lrw *loggingResponseWriter) Write(b []byte) (int, error) {
+	size, err := lrw.ResponseWriter.Write(b)
+	lrw.size += size
+	return size, err
+}
+
 // Middleware
 func LoggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s %s", r.Method, r.RequestURI, r.RemoteAddr)
-		next.ServeHTTP(w, r)
+		// Skip logging for hot reload polling endpoint to avoid spam
+		if r.URL.Path == "/__rebolo__/changes" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		start := time.Now()
+		lrw := newLoggingResponseWriter(w)
+
+		next.ServeHTTP(lrw, r)
+
+		duration := time.Since(start)
+		log.Printf("[%s] %s %s %d %d %v %s",
+			r.Method,
+			r.RequestURI,
+			r.RemoteAddr,
+			lrw.statusCode,
+			lrw.size,
+			duration,
+			r.UserAgent(),
+		)
 	})
 }
 
