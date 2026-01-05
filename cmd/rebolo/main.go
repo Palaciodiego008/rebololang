@@ -11,7 +11,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "rebolo",
 	Short: "ReboloLang - A modern Go web framework inspired by Rebolo, Barranquilla",
-	Long:  `ReboloLang is a batteries-included web framework for Go with Bun.js asset pipeline, hot reload, and Rails-like conventions.`,
+	Long:  `ReboloLang is a batteries-included web framework for Go with Bun.js asset pipeline, hot reload, and modern conventions.`,
 }
 
 var newCmd = &cobra.Command{
@@ -20,10 +20,15 @@ var newCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		appName := args[0]
+		frontendFramework, _ := cmd.Flags().GetString("frontend")
+		
 		fmt.Printf("Creating new ReboloLang app: %s\n", appName)
+		if frontendFramework != "" && frontendFramework != "none" {
+			fmt.Printf("Frontend framework: %s\n", frontendFramework)
+		}
 
 		generator := NewGenerator()
-		if err := generator.GenerateApp(appName); err != nil {
+		if err := generator.GenerateApp(appName, frontendFramework); err != nil {
 			fmt.Printf("❌ Failed to generate app: %v\n", err)
 			os.Exit(1)
 		}
@@ -101,6 +106,9 @@ var taskCmd = &cobra.Command{
 }
 
 func init() {
+	// Add flags to new command
+	newCmd.Flags().StringP("frontend", "f", "none", "Frontend framework: react, svelte, vue, or none (default: none)")
+	
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(buildCmd)
