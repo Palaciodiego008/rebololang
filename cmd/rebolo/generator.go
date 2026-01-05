@@ -23,10 +23,11 @@ type Generator struct {
 }
 
 type AppData struct {
-	Name      string
-	Module    string
-	Framework string
-	Title     string
+	Name             string
+	Module           string
+	Framework        string
+	Title            string
+	FrontendFramework string
 }
 
 type ResourceData struct {
@@ -60,6 +61,7 @@ func NewGenerator() *Generator {
 	// Parse templates manually to handle nested directories
 	tmpl = template.Must(tmpl.ParseFS(templates,
 		"templates/app/main.go.tmpl",
+		"templates/app/main_spa.go.tmpl",
 		"templates/app/package.json.tmpl",
 		"templates/app/src/index.js.tmpl",
 		"templates/app/src/styles.css.tmpl",
@@ -77,12 +79,29 @@ func NewGenerator() *Generator {
 	}
 }
 
-func (g *Generator) GenerateApp(name string) error {
+func (g *Generator) GenerateApp(name string, frontendFramework string) error {
+	// Validate frontend framework
+	validFrameworks := map[string]bool{
+		"react":  true,
+		"svelte": true,
+		"vue":    true,
+		"none":   true,
+	}
+	
+	if frontendFramework == "" {
+		frontendFramework = "none"
+	}
+	
+	if !validFrameworks[frontendFramework] {
+		return fmt.Errorf("invalid frontend framework: %s. Valid options are: react, svelte, vue, none", frontendFramework)
+	}
+
 	data := AppData{
-		Name:      name,
-		Module:    fmt.Sprintf("github.com/Palaciodiego008/%s", name),
-		Framework: "ReboloLang",
-		Title:     fmt.Sprintf("Welcome to %s", name),
+		Name:             name,
+		Module:           fmt.Sprintf("github.com/Palaciodiego008/%s", name),
+		Framework:        "ReboloLang",
+		Title:            fmt.Sprintf("Welcome to %s", name),
+		FrontendFramework: frontendFramework,
 	}
 
 	// Create directory structure
@@ -105,13 +124,19 @@ func (g *Generator) GenerateApp(name string) error {
 
 	// Generate files from templates
 	files := map[string]string{
-		filepath.Join(name, "main.go"):                              "app/main.go.tmpl",
 		filepath.Join(name, "package.json"):                         "app/package.json.tmpl",
 		filepath.Join(name, "config.yml"):                           "config/config.yml.tmpl",
 		filepath.Join(name, "src", "index.js"):                      "app/src/index.js.tmpl",
 		filepath.Join(name, "src", "styles.css"):                    "app/src/styles.css.tmpl",
 		filepath.Join(name, "views", "layouts", "application.html"): "app/views/layouts/application.html.tmpl",
 		filepath.Join(name, "views", "home", "index.html"):          "app/views/home/index.html.tmpl",
+	}
+	
+	// Use different main.go template based on frontend
+	if frontendFramework != "none" {
+		files[filepath.Join(name, "main.go")] = "app/main_spa.go.tmpl"
+	} else {
+		files[filepath.Join(name, "main.go")] = "app/main.go.tmpl"
 	}
 
 	for filePath, tmplName := range files {
@@ -129,11 +154,26 @@ func (g *Generator) GenerateApp(name string) error {
 		fmt.Printf("⚠️  Note: go mod init skipped (module may already exist)\n")
 	}
 
+	// Generate frontend if framework is specified
+	if frontendFramework != "none" {
+		if err := g.generateFrontend(name, frontendFramework, data); err != nil {
+			return fmt.Errorf("failed to generate frontend: %w", err)
+		}
+	}
+
 	fmt.Printf("✅ Generated app: %s\n", name)
+	if frontendFramework != "none" {
+		fmt.Printf("🎨 Frontend framework: %s\n", frontendFramework)
+	}
 	fmt.Printf("💡 Next steps:\n")
 	fmt.Printf("   cd %s\n", name)
 	fmt.Printf("   go mod tidy\n")
-	fmt.Printf("   rebolo dev\n")
+	if frontendFramework != "none" {
+		fmt.Printf("   cd frontend && bun install\n")
+		fmt.Printf("   cd .. && rebolo dev\n")
+	} else {
+		fmt.Printf("   rebolo dev\n")
+	}
 	return nil
 }
 
@@ -349,3 +389,81 @@ func (g *Generator) getModuleName() string {
 	// Fallback
 	return "app"
 }
+
+func (g *Generator) generateFrontend(appName, framework string, data AppData) error {
+	frontendDir := filepath.Join(appName, "frontend")
+	srcDir := filepath.Join(frontendDir, "src")
+
+	// Create frontend directories
+	if err := os.MkdirAll(srcDir, 0755); err != nil {
+		return err
+	}
+
+	fmt.Printf("🎨 Generating %s frontend...\n", framework)
+
+	var files map[string]string
+	
+	switch framework {
+	case "react":
+		files = map[string]string{
+			filepath.Join(frontendDir, "package.json"):     "frontend/react/package.json.tmpl",
+			filepath.Join(frontendDir, "tsconfig.json"):    "frontend/react/tsconfig.json.tmpl",
+			filepath.Join(frontendDir, "vite.config.js"):   "frontend/react/vite.config.js.tmpl",
+			filepath.Join(frontendDir, "index.html"):       "frontend/react/index.html.tmpl",
+			filepath.Join(srcDir, "index.tsx"):             "frontend/react/index.tsx.tmpl",
+			filepath.Join(srcDir, "App.tsx"):               "frontend/react/App.tsx.tmpl",
+			filepath.Join(srcDir, "styles.css"):            "frontend/react/styles.css.tmpl",
+		}
+	case "svelte":
+		files = map[string]string{
+			filepath.Join(frontendDir, "package.json"):     "frontend/svelte/package.json.tmpl",
+			filepath.Join(frontendDir, "vite.config.js"):   "frontend/svelte/vite.config.js.tmpl",
+			filepath.Join(frontendDir, "index.html"):       "frontend/svelte/index.html.tmpl",
+			filepath.Join(srcDir, "main.js"):               "frontend/svelte/main.js.tmpl",
+			filepath.Join(srcDir, "App.svelte"):            "frontend/svelte/App.svelte.tmpl",
+			filepath.Join(srcDir, "app.css"):               "frontend/svelte/app.css.tmpl",
+		}
+	case "vue":
+		files = map[string]string{
+			filepath.Join(frontendDir, "package.json"):     "frontend/vue/package.json.tmpl",
+			filepath.Join(frontendDir, "vite.config.js"):   "frontend/vue/vite.config.js.tmpl",
+			filepath.Join(frontendDir, "index.html"):       "frontend/vue/index.html.tmpl",
+			filepath.Join(srcDir, "main.js"):               "frontend/vue/main.js.tmpl",
+			filepath.Join(srcDir, "App.vue"):               "frontend/vue/App.vue.tmpl",
+			filepath.Join(srcDir, "style.css"):             "frontend/vue/style.css.tmpl",
+		}
+	default:
+		return fmt.Errorf("unsupported framework: %s", framework)
+	}
+
+	// Generate all frontend files from templates
+	for filePath, tmplName := range files {
+		tmplContent, err := templates.ReadFile("templates/" + tmplName)
+		if err != nil {
+			return fmt.Errorf("failed to read template %s: %w", tmplName, err)
+		}
+
+		tmpl, err := template.New(filepath.Base(filePath)).Parse(string(tmplContent))
+		if err != nil {
+			return fmt.Errorf("failed to parse template %s: %w", tmplName, err)
+		}
+
+		file, err := os.Create(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", filePath, err)
+		}
+
+		if err := tmpl.Execute(file, data); err != nil {
+			file.Close()
+			return fmt.Errorf("failed to execute template %s: %w", tmplName, err)
+		}
+		file.Close()
+	}
+
+	// Create components directory
+	os.MkdirAll(filepath.Join(srcDir, "components"), 0755)
+
+	fmt.Printf("✅ Frontend files generated in %s\n", frontendDir)
+	return nil
+}
+

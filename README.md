@@ -25,7 +25,18 @@ go install github.com/Palaciodiego008/rebololang/cmd/rebolo@latest
 ### Create New App
 
 ```bash
+# Basic app
 rebolo new myblog
+
+# With React frontend
+rebolo new myblog --frontend react
+
+# With Svelte frontend
+rebolo new myblog --frontend svelte
+
+# With Vue frontend
+rebolo new myblog --frontend vue
+
 cd myblog
 ```
 
@@ -56,11 +67,13 @@ Visit: `http://localhost:3000` 🎉
 | 🧪 Testing Helpers | ✅ |
 | ⚡ Asset Pipeline (Bun.js) | ✅ |
 | 🗄️ SQLite/PostgreSQL | ✅ |
+| ⚛️ React/Svelte/Vue Support | ✅ |
 
 ## 📖 Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Commands Reference](docs/COMMANDS.md)
+- [Frontend Frameworks](docs/FRONTEND.md) - React, Svelte, Vue support
 - [Examples](examples/)
 
 ## 🎯 Example
@@ -158,6 +171,15 @@ myapp/
 ```bash
 # Create new app
 rebolo new myapp
+
+# Create app with React frontend
+rebolo new myapp --frontend react
+
+# Create app with Svelte frontend
+rebolo new myapp --frontend svelte
+
+# Create app with Vue frontend
+rebolo new myapp --frontend vue
 
 # Generate resource (CRUD)
 rebolo generate resource Post title:string content:text

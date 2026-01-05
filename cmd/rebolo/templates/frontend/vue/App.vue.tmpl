@@ -1,0 +1,44 @@
+<script setup>
+import { ref } from 'vue'
+
+const count = ref(0)
+
+const increment = () => count.value++
+const decrement = () => count.value--
+const reset = () => count.value = 0
+</script>
+
+<template>
+  <div class="app">
+    <header class="app-header">
+      <h1>🔥 {{.Title}}</h1>
+      <p>Built with Vue + ReboloLang + Bun.js</p>
+    </header>
+    
+    <main class="app-main">
+      <div class="counter-card">
+        <h2>Counter Example</h2>
+        <p class="counter-display">{{"{{"}} count {{"}}"}}</p>
+        <div class="button-group">
+          <button @click="decrement">-</button>
+          <button @click="reset">Reset</button>
+          <button @click="increment">+</button>
+        </div>
+      </div>
+      
+      <div class="info-card">
+        <h3>Next Steps:</h3>
+        <ul>
+          <li>Edit <code>frontend/src/App.vue</code> to build your UI</li>
+          <li>Add components in <code>frontend/src/components/</code></li>
+          <li>Run <code>bun run dev</code> to start the dev server</li>
+          <li>API endpoints available at <code>/api/*</code></li>
+        </ul>
+      </div>
+    </main>
+  </div>
+</template>
+
+<style scoped>
+/* Component-specific styles can go here */
+</style>

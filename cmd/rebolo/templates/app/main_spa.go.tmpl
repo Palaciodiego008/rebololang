@@ -1,0 +1,124 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"path/filepath"
+	
+	"github.com/Palaciodiego008/rebololang/pkg/rebolo"
+)
+
+func main() {
+	app := rebolo.New()
+	
+	// Enable hot reload in development mode
+	env := os.Getenv("GO_ENV")
+	if env == "" || env == "development" {
+		if err := app.EnableHotReload(); err != nil {
+			log.Printf("⚠️  Hot reload failed: %v", err)
+		}
+	}
+	
+	// API Routes (for AJAX calls from frontend)
+	app.GET("/api/health", HealthHandler)
+	app.GET("/api/hello", HelloHandler)
+	
+	// Serve static files from public directory (compiled frontend assets)
+	app.ServeStatic("/", "./public/")
+	
+	// Fallback for SPA client-side routing
+	app.GET("/*", func(w http.ResponseWriter, r *http.Request) {
+		// If requesting a file (has extension), let it 404
+		if filepath.Ext(r.URL.Path) != "" {
+			http.NotFound(w, r)
+			return
+		}
+		// Otherwise serve index.html for SPA routing
+		HomeHandler(w, r)
+	})
+	
+	log.Println("")
+	log.Println("🔥 ReboloLang Server")
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Println("🚀 Server:     http://localhost:3000")
+	log.Println("🎨 Frontend:   {{.FrontendFramework}}")
+	log.Println("💡 API:        http://localhost:3000/api/*")
+	log.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	log.Println("")
+	
+	if err := app.Start(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// HomeHandler serves the main SPA index.html
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+	indexPath := filepath.Join("public", "index.html")
+	
+	// Check if built frontend exists
+	if _, err := os.Stat(indexPath); os.IsNotExist(err) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{.Name}} - Building...</title>
+    <style>
+        body { 
+            font-family: system-ui, sans-serif; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            height: 100vh; 
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container { text-align: center; padding: 2rem; }
+        h1 { font-size: 3rem; margin: 0 0 1rem 0; }
+        p { font-size: 1.2rem; opacity: 0.9; }
+        code { 
+            background: rgba(255,255,255,0.2); 
+            padding: 0.5rem 1rem; 
+            border-radius: 4px; 
+            display: inline-block;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 {{.Name}}</h1>
+        <p>Frontend is building...</p>
+        <p><small>This usually takes a few seconds</small></p>
+        <code>cd frontend && bun install && bun run build</code>
+        <p style="margin-top: 2rem;"><small>Then refresh this page</small></p>
+    </div>
+    <script>
+        // Auto-reload every 2 seconds until frontend is ready
+        setTimeout(() => location.reload(), 2000);
+    </script>
+</body>
+</html>
+		`))
+		return
+	}
+	
+	http.ServeFile(w, r, indexPath)
+}
+
+// HealthHandler - API endpoint for health checks
+func HealthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok","framework":"{{.FrontendFramework}}","app":"{{.Name}}"}`))
+}
+
+// HelloHandler - Example API endpoint
+func HelloHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"message":"Hello from ReboloLang!","app":"{{.Name}}","framework":"{{.FrontendFramework}}"}`))
+}
+
+

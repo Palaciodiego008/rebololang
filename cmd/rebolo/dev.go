@@ -33,13 +33,31 @@ func startDevServer() {
 		cancel()
 	}()
 
-	// 1. Setup Bun.js and compile assets initially
-	setupBunAndAssets()
+	// Check if frontend exists
+	hasFrontend := false
+	if _, err := os.Stat("frontend"); err == nil {
+		hasFrontend = true
+		fmt.Println("🎨 Frontend detected")
+	}
 
-	// 2. Start Bun watcher for assets (CSS/JS) in background
-	go watchAndCompileAssets(ctx)
+	if hasFrontend {
+		// 1. Install frontend dependencies if needed
+		setupFrontendDependencies()
+		
+		// 2. Build frontend initially
+		buildFrontend()
+		
+		// 3. Watch frontend for changes
+		go watchAndCompileFrontend(ctx)
+	} else {
+		// Traditional mode: Setup Bun.js and compile assets initially
+		setupBunAndAssets()
+		
+		// Start Bun watcher for assets (CSS/JS) in background
+		go watchAndCompileAssets(ctx)
+	}
 
-	// 3. Start Go server with hot reload for .go files
+	// Start Go server with hot reload for .go files
 	startGoServerWithHotReload(ctx)
 }
 
@@ -287,3 +305,102 @@ func createFallbackAssets() {
 
 	fmt.Println("✅ Fallback assets created")
 }
+
+// setupFrontendDependencies installs frontend dependencies with Bun
+func setupFrontendDependencies() {
+	pkgPath := filepath.Join("frontend", "package.json")
+	nodeModules := filepath.Join("frontend", "node_modules")
+	
+	// Check if dependencies are already installed
+	if _, err := os.Stat(nodeModules); err == nil {
+		return
+	}
+	
+	if _, err := os.Stat(pkgPath); os.IsNotExist(err) {
+		return
+	}
+	
+	fmt.Println("📦 Installing frontend dependencies...")
+	cmd := exec.Command("bun", "install")
+	cmd.Dir = "frontend"
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	
+	if err := cmd.Run(); err != nil {
+		log.Printf("⚠️  Failed to install dependencies: %v", err)
+		log.Println("   Run manually: cd frontend && bun install")
+	} else {
+		fmt.Println("✅ Dependencies installed")
+	}
+}
+
+// buildFrontend builds the frontend with Vite/Bun
+func buildFrontend() {
+	fmt.Println("⚡ Building frontend...")
+	
+	cmd := exec.Command("bun", "run", "build")
+	cmd.Dir = "frontend"
+	output, err := cmd.CombinedOutput()
+	
+	if err != nil {
+		log.Printf("⚠️  Frontend build failed: %v", err)
+		log.Printf("   Output: %s", string(output))
+		return
+	}
+	
+	fmt.Println("✅ Frontend built successfully")
+}
+
+// watchAndCompileFrontend watches frontend changes and rebuilds
+func watchAndCompileFrontend(ctx context.Context) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Printf("❌ Failed to create frontend watcher: %v", err)
+		return
+	}
+	defer watcher.Close()
+
+	// Watch frontend/src directory
+	frontendSrc := filepath.Join("frontend", "src")
+	if err := filepath.Walk(frontendSrc, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil {
+			return err
+		}
+		if info.IsDir() {
+			return watcher.Add(path)
+		}
+		return nil
+	}); err != nil {
+		log.Printf("❌ Failed to watch frontend: %v", err)
+		return
+	}
+
+	fmt.Println("👀 Watching frontend for changes...")
+
+	debounce := time.NewTimer(500 * time.Millisecond)
+	debounce.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+				ext := filepath.Ext(event.Name)
+				if ext == ".tsx" || ext == ".ts" || ext == ".jsx" || ext == ".js" || 
+				   ext == ".vue" || ext == ".svelte" || ext == ".css" {
+					fmt.Printf("🔄 Frontend changed: %s\n", filepath.Base(event.Name))
+					debounce.Reset(500 * time.Millisecond)
+				}
+			}
+		case <-debounce.C:
+			buildFrontend()
+		case err := <-watcher.Errors:
+			log.Printf("❌ Frontend watcher error: %v", err)
+		}
+	}
+}
+
